@@ -1,39 +1,29 @@
 #include <stdio.h>
 #include "pin.H"
 
+KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "branchtrace.out", "trace output file name");
+
 FILE * trace;
 
-// VOID * jcc_addr = 0;
+VOID ImageLoad(IMG img, VOID *v) { 
+    fprintf(trace, "{\"event\": \"image_load\", \"image_name\": \"%s\", \"image_id\": %d, \"base_addr\": \"%#lx\"}\n", IMG_Name(img).c_str(), IMG_Id(img), IMG_LowAddress(img));
+}
 
-// VOID jcc_before_handler(VOID *ip) { 
-//     fprintf(trace, "before: %p\n", ip); 
-//     jcc_addr = ip;
-// }
-
-// VOID jcc_fail_through_handler(VOID *ip) {
-//     fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%p\", \"jump_taken\": false, \"next_inst_addr\": \"%p\"}\n", jcc_addr, ip);
-// }
-
-// VOID jcc_taken_handler(VOID *ip) {
-//     // fprintf(trace, "taken: %p\n", ip); 
-//     fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%p\", \"jump_taken\": true, \"next_inst_addr\": \"%p\"}\n", jcc_addr, ip);
-// }
-
-VOID ProcessBranch(ADDRINT PC, ADDRINT TargetPC, bool BrTaken) {
-    // fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"next_inst_addr\": \"%#lx\", \"jump_taken\": %s},\n", PC, TargetPC, BrTaken ? "true" : "false"); // TargetPC が次の命令のアドレスを返さない。
-    fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"jump_taken\": %s},\n", PC, BrTaken ? "true" : "false");
+VOID ProcessBranch(ADDRINT PC, bool BrTaken) {
+    fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"branch_taken\": %s},\n", PC, BrTaken ? "true" : "false");
 }
 
 // Pin calls this function every time a new instruction is encountered
 VOID Instruction(INS ins, VOID *v)  {
        if ( LEVEL_CORE::INS_IsBranch(ins) ) {
-           INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) ProcessBranch, IARG_ADDRINT, INS_Address(ins), IARG_ADDRINT, LEVEL_PINCLIENT::INS_NextAddress, IARG_BRANCH_TAKEN, IARG_END);
+           INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) ProcessBranch, IARG_ADDRINT, INS_Address(ins), IARG_BRANCH_TAKEN, IARG_END);
        }
 }
 
 // This function is called when the application exits
 VOID Fini(INT32 code, VOID *v)
 {
+    fprintf(trace, "{\"event\": \"exit\", \"exit_code\": %d}\n", code);
     fprintf(trace, "]\n");
     fclose(trace);
 }
@@ -55,11 +45,18 @@ INT32 Usage()
 
 int main(int argc, char * argv[])
 {
-    trace = fopen("branchtrace.out", "w");
+    // Initialize tracer output file
+    trace = fopen(KnobOutputFile.Value().c_str(), "w");
     fprintf(trace, "[\n");
+
+    // Initialize symbol processing
+    PIN_InitSymbols();
     
     // Initialize pin
     if (PIN_Init(argc, argv)) return Usage();
+
+    // Register ImageLoad to be called when an image is loaded
+    IMG_AddInstrumentFunction(ImageLoad, 0); 
 
     // Register Instruction to be called to instrument instructions
     INS_AddInstrumentFunction(Instruction, 0);

@@ -1,7 +1,7 @@
-My PinTool
+Nao PinTool
 ====
 
-pin-3.11-97998-g7ecce2dac-gcc-linux
+Based on pin-3.11-97998-g7ecce2dac-gcc-linux
 
 
 How to build
@@ -9,7 +9,7 @@ How to build
 ```shell
 cd source/tools
 git clone THIS_REPOSITORY
-cd MyPinTool
+cd NaoPinTool
 make
 ```
 
