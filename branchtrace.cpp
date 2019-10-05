@@ -6,18 +6,23 @@ KNOB<std::string> KnobOutputFile(KNOB_MODE_WRITEONCE, "pintool", "o", "branchtra
 FILE * trace;
 
 VOID ImageLoad(IMG img, VOID *v) { 
-    fprintf(trace, "{\"event\": \"image_load\", \"image_name\": \"%s\", \"image_id\": %d, \"base_addr\": \"%#lx\"}\n", IMG_Name(img).c_str(), IMG_Id(img), IMG_LowAddress(img));
+    fprintf(trace, "{\"event\": \"image_load\", \"image_name\": \"%s\", \"image_id\": %d, \"base_addr\": \"%#lx\", \"image_size\": \"%#lx\"},\n", IMG_Name(img).c_str(), IMG_Id(img), IMG_LowAddress(img), IMG_HighAddress(img) - IMG_LowAddress(img));
 }
 
-VOID ProcessBranch(ADDRINT PC, bool BrTaken) {
-    fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"branch_taken\": %s},\n", PC, BrTaken ? "true" : "false");
+VOID InstructionExecute(ADDRINT PC) {
+    fprintf(trace, "{\"event\": \"instruction\", \"inst_addr\": \"%#lx\"},\n", PC);
+}
+
+VOID ProcessBranch(ADDRINT PC, ADDRINT NextPC, bool BrTaken) {
+    fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"next_inst_addr\": \"%#lx\", \"branch_taken\": %s},\n", PC, NextPC, BrTaken ? "true" : "false");
 }
 
 // Pin calls this function every time a new instruction is encountered
 VOID Instruction(INS ins, VOID *v)  {
-       if ( LEVEL_CORE::INS_IsBranch(ins) ) {
-           INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) ProcessBranch, IARG_ADDRINT, INS_Address(ins), IARG_BRANCH_TAKEN, IARG_END);
-       }
+    // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) InstructionExecute, IARG_ADDRINT, INS_Address(ins), IARG_END);
+    if ( LEVEL_CORE::INS_IsBranch(ins) ) {
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) ProcessBranch, IARG_ADDRINT, INS_Address(ins), IARG_ADDRINT, 0, IARG_BRANCH_TAKEN, IARG_END);
+    }
 }
 
 // This function is called when the application exits

@@ -17,7 +17,7 @@
 # This defines tests which run tools of the same name.  This is simply for convenience to avoid
 # defining the test name twice (once in TOOL_ROOTS and again in TEST_ROOTS).
 # Tests defined here should not be defined in TOOL_ROOTS and TEST_ROOTS.
-TEST_TOOL_ROOTS := branchtrace
+TEST_TOOL_ROOTS := branchtrace strace
 
 # This defines the tests to be run that were not already defined in TEST_TOOL_ROOTS.
 TEST_ROOTS :=
@@ -35,7 +35,7 @@ TOOL_ROOTS :=
 SA_TOOL_ROOTS :=
 
 # This defines all the applications that will be run during the tests.
-APP_ROOTS := fibonacci little_malloc
+APP_ROOTS := 
 
 # This defines any additional object files that need to be compiled.
 OBJECT_ROOTS :=
