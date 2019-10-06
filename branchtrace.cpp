@@ -9,11 +9,29 @@ VOID ImageLoad(IMG img, VOID *v) {
     fprintf(trace, "{\"event\": \"image_load\", \"image_name\": \"%s\", \"image_id\": %d, \"base_addr\": \"%#lx\", \"image_size\": \"%#lx\"},\n", IMG_Name(img).c_str(), IMG_Id(img), IMG_LowAddress(img), IMG_HighAddress(img) - IMG_LowAddress(img));
 }
 
-VOID InstructionExecute(ADDRINT PC) {
-    fprintf(trace, "{\"event\": \"instruction\", \"inst_addr\": \"%#lx\"},\n", PC);
-}
+// VOID InstructionExecute(ADDRINT PC) {
+//     fprintf(trace, "{\"event\": \"instruction\", \"inst_addr\": \"%#lx\"},\n", PC);
+// }
 
 VOID ProcessBranch(ADDRINT PC, ADDRINT NextPC, bool BrTaken) {
+    PIN_LockClient();
+    IMG img = IMG_FindByAddress(PC);
+    PIN_UnlockClient();
+    if (IMG_Valid(img)){
+        if (IMG_Name(img) == "/lib64/ld-linux-x86-64.so.2") {
+            return;
+        }
+        if (IMG_Name(img) == "[vdso]") {
+            return;
+        }
+        if (IMG_Name(img) == "/lib/x86_64-linux-gnu/libc.so.6") {
+            return;
+        }
+    }
+    else {
+        return; // Ignore unknown image
+    }
+    // fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"next_inst_addr\": \"%#lx\", \"branch_taken\": %s, \"image_name\": \"%s\"},\n", PC, NextPC, BrTaken ? "true" : "false", IMG_Valid(img) ? IMG_Name(img).c_str() : "");
     fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"next_inst_addr\": \"%#lx\", \"branch_taken\": %s},\n", PC, NextPC, BrTaken ? "true" : "false");
 }
 
