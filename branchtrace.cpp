@@ -13,26 +13,38 @@ VOID ImageLoad(IMG img, VOID *v) {
 //     fprintf(trace, "{\"event\": \"instruction\", \"inst_addr\": \"%#lx\"},\n", PC);
 // }
 
-VOID ProcessBranch(ADDRINT PC, ADDRINT NextPC, bool BrTaken) {
+BOOL IsInMainImage(ADDRINT PC) {
     PIN_LockClient();
     IMG img = IMG_FindByAddress(PC);
     PIN_UnlockClient();
     if (IMG_Valid(img)){
         if (IMG_Name(img) == "/lib64/ld-linux-x86-64.so.2") {
-            return;
+            return false;
         }
         if (IMG_Name(img) == "[vdso]") {
-            return;
+            return false;
         }
         if (IMG_Name(img) == "/lib/x86_64-linux-gnu/libc.so.6") {
-            return;
+            return false;
         }
     }
     else {
-        return; // Ignore unknown image
+        return false; // Ignore unknown image
     }
+    return true;
+}
+
+VOID ProcessBranch(ADDRINT PC, ADDRINT NextPC, bool BrTaken) {
+    if (!IsInMainImage(PC)) return;
     // fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"next_inst_addr\": \"%#lx\", \"branch_taken\": %s, \"image_name\": \"%s\"},\n", PC, NextPC, BrTaken ? "true" : "false", IMG_Valid(img) ? IMG_Name(img).c_str() : "");
-    fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"next_inst_addr\": \"%#lx\", \"branch_taken\": %s},\n", PC, NextPC, BrTaken ? "true" : "false");
+    fprintf(trace, "{\"event\": \"branch\", \"inst_addr\": \"%#lx\", \"branch_taken\": %s},\n", PC, BrTaken ? "true" : "false");
+}
+
+VOID ProcessCallRax(ADDRINT PC, CONTEXT *ctxt) {
+    if (!IsInMainImage(PC)) return;
+    PIN_REGISTER regval;
+    LEVEL_PINCLIENT::PIN_GetContextRegval(ctxt, REG_RAX, reinterpret_cast<UINT8*>(&regval));
+    fprintf(trace, "{\"event\": \"call\", \"inst_addr\": \"%#lx\", \"target_addr\": \"%#lx\"},\n", PC, regval.qword[0]);
 }
 
 // Pin calls this function every time a new instruction is encountered
@@ -40,6 +52,9 @@ VOID Instruction(INS ins, VOID *v)  {
     // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) InstructionExecute, IARG_ADDRINT, INS_Address(ins), IARG_END);
     if ( LEVEL_CORE::INS_IsBranch(ins) ) {
         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) ProcessBranch, IARG_ADDRINT, INS_Address(ins), IARG_ADDRINT, 0, IARG_BRANCH_TAKEN, IARG_END);
+    }
+    if ( LEVEL_CORE::INS_IsCall(ins) && LEVEL_CORE::INS_RegRContain(ins, REG_RAX) ) {
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) ProcessCallRax, IARG_ADDRINT, INS_Address(ins), IARG_CONTEXT, IARG_END);
     }
 }
 
